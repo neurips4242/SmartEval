@@ -2,7 +2,7 @@
 REM Launch demo automatically with translation API
 
 echo ========================================
-echo IBM Agentics - Smart Contract Translator
+echo SmartEval - Smart Contract Translation Pipeline
 echo Research & Quality Evaluation Demo
 echo ========================================
 echo.

@@ -1,7 +1,7 @@
 """
 Legacy Program classes kept for backward compatibility.
 
-These IBM Agentics Program classes use the traditional `forward()` pattern.
+These Program classes use the traditional `forward()` pattern.
 The current pipeline uses Agent/Task/Crew orchestration instead.
 """
 
@@ -631,7 +631,7 @@ DEFENSIVE PROGRAMMING RULES:
 
 
 class SecurityAuditorProgram(Program):
-    """IBM Agentics Program for security auditing"""
+    """Program for security auditing"""
 
     def forward(self, solidity_code: str, lm: LLM) -> Dict:
         """Perform security audit"""
@@ -702,7 +702,7 @@ CRITICAL RULES:
 
 class MCPServerGeneratorProgram(Program):
     """
-    IBM Agentics Program for generating custom MCP servers from ABI files
+    Program for generating custom MCP servers from ABI files
     """
 
     def forward(

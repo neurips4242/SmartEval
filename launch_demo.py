@@ -25,7 +25,7 @@ use_modular = os.getenv("USE_MODULAR_CORE", "true").lower() not in ("false", "0"
 impl_mode = "Modular Core Package" if use_modular else "Legacy Monolithic"
 
 print("\n" + "=" * 70)
-print("IBM Agentics - Smart Contract Translator (Research Edition)")
+print("SmartEval - Smart Contract Translation Pipeline (Research Edition)")
 print("   Dataset-Driven Quality Evaluation")
 print(f"   Implementation: {impl_mode}")
 print("=" * 70 + "\n")

@@ -27,7 +27,7 @@ SmartEval/
 │   │   ├── task_builders.py   # Per-agent task prompt constructors
 │   │   ├── schemas.py         # Pydantic data models (UniversalContractSchema)
 │   │   ├── solidity_compiler.py # Compilation validation via solc/solcjs
-│   │   └── programs.py        # Legacy IBM Agentics Program class wrappers
+│   │   └── programs.py        # Legacy Program class wrappers (forward()-pattern)
 │   ├── demo.html              # Live translation demo interface
 │   ├── sampler.html           # Dataset browser interface
 │   └── output/                # Generated contract artifacts (per-batch subdirectories)
@@ -42,7 +42,7 @@ SmartEval/
 │   ├── experiment_5_debiased_metric.py   # Semantic debiasing of the quality rubric
 │   ├── experiment_6_contract_type.py     # Per-contract-type breakdown
 │   └── experiment_utils.py    # Shared statistical utilities (Cohen's d, etc.)
-├── src/agentics/              # IBM Agentics library (LLM connections, async executor, etc.)
+├── src/agentics/              # Agentics library (LLM connections, async executor, etc.)
 ├── launch_demo.py             # One-command demo launcher (starts all servers)
 ├── launch_demo.bat            # Windows equivalent of launch_demo.py
 ├── test_checkpoints.py        # Batch checkpoint verification utility
