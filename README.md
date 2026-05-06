@@ -47,6 +47,7 @@ SmartEval/
 ├── launch_demo.bat            # Windows equivalent of launch_demo.py
 ├── test_checkpoints.py        # Batch checkpoint verification utility
 ├── requirements.txt           # All Python dependencies
+├── .env.example               # Environment variable template (copy to .env and fill in)
 └── __init__.py
 ```
 
