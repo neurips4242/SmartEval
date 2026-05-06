@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IBM Agentics Contract Translator - Complete Demo</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Debug logging
+    console.log('=== Demo.html Loading ===');
+    console.log('React loaded:', typeof React !== 'undefined');
+    console.log('ReactDOM loaded:', typeof ReactDOM !== 'undefined');
+    console.log('Babel loaded:', typeof Babel !== 'undefined');
+
+    window.addEventListener('error', function(e) {
+      console.error('Global error:', e.error);
+      document.body.innerHTML = '<div style="padding: 20px; background: #f8d7da; color: #721c24; font-family: monospace;"><h1>Error Loading Demo</h1><pre>' + e.error + '</pre></div>';
+    });
+  </script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+  <div id="root"><div style="color: white; padding: 50px; text-align: center;">Loading...</div></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const icons = {
+      upload: () => <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 text-gray-400" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+      loader: () => <svg xmlns="http://www.w3.org/2000/svg" className="animate-spin mx-auto mb-4 text-purple-400" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeOpacity="0.25"/><path d="M22 12a10 10 0 0 1-10 10" /></svg>,
+      check: () => <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 text-green-400" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
+      file: () => <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 text-purple-400" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 2h10l6 6v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><polyline points="14 2 14 8 20 8"/></svg>,
+      chain: () => <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 text-blue-400" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M9 6h6M6 9v6M18 9v6"/></svg>,
+      chat: () => <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 text-cyan-400" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+      error: () => <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 text-red-400" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+    };
+
+    // Step Progress Component
+    function StepIndicator({ current, total, labels }) {
+      return (
+        <div className="flex justify-between mb-12">
+          {labels.map((label, i) => {
+            const num = i + 1;
+            return (
+              <div key={num} className="flex flex-col items-center flex-1">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold mb-2 transition-all ${current >= num ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg" : "bg-gray-700 text-gray-400"}`}>{num}</div>
+                <span className={`text-sm text-center ${current >= num ? "text-purple-300 font-medium" : "text-gray-500"}`}>{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Main Demo App
+    function ContractTranslatorDemo() {
+      // Workflow state
+      const [phase, setPhase] = useState(0); // 0-6 for 6 phases
+      const [contractType, setContractType] = useState('sales'); // sales, employment, investment, nda, etc
+      const [contractText, setContractText] = useState('');
+      const [currentPhaseInfo, setCurrentPhaseInfo] = useState({
+        title: '',
+        status: '',
+        output: '',
+        progress: 0
+      });
+
+      // Post-generation state
+      const [generatedData, setGeneratedData] = useState({
+        solidity: '',
+        abi: '',
+        schema: '',
+        audit: '',
+        mcp: ''
+      });
+
+      // Audit approval state
+      const [showAuditModal, setShowAuditModal] = useState(false);
+      const [auditData, setAuditData] = useState(null);
+      const [currentSessionId, setCurrentSessionId] = useState(null);
+      const [groundTruthCode, setGroundTruthCode] = useState('');
+
+      // View toggle state for switching between quality eval and ground truth comparison
+      const [activeView, setActiveView] = useState('quality'); // 'quality' or 'comparison'
+
+      // Load contract from localStorage if available (from sampler.html)
+      useEffect(() => {
+        const savedText = localStorage.getItem('contract_text');
+        const savedType = localStorage.getItem('contract_type');
+        const savedGroundTruth = localStorage.getItem('ground_truth_code');
+        if (savedText) {
+          setContractText(savedText);
+          if (savedType) {
+            setContractType(savedType);
+          }
+          if (savedGroundTruth) {
+            setGroundTruthCode(savedGroundTruth);
+            console.log('✓ Loaded ground truth code for comparison');
+          }
+          // Clear from localStorage after loading
+          localStorage.removeItem('contract_text');
+          localStorage.removeItem('contract_type');
+          localStorage.removeItem('ground_truth_code');
+          console.log('✓ Loaded contract from sampler');
+        }
+      }, []);
+
+      // Sample contract types
+      const contractTypes = [
+        { id: 'sales', name: 'Sales Agreement', icon: '🛒' },
+        { id: 'employment', name: 'Employment Contract', icon: '💼' },
+        { id: 'investment', name: 'Investment Agreement', icon: '💰' },
+        { id: 'nda', name: 'NDA', icon: '🔒' },
+        { id: 'rental', name: 'Rental Agreement', icon: '🏠' },
+        { id: 'loan', name: 'Loan Agreement', icon: '🏦' },
+        { id: 'other', name: 'Other', icon: '📝' }
+      ];
+
+      // Phase descriptions
+      const phaseDescriptions = [
+        { title: 'Phase 1: Document Processing', icon: '📄', color: 'from-blue-500 to-cyan-500' },
+        { title: 'Phase 2: Contract Analysis', icon: '🔍', color: 'from-purple-500 to-pink-500' },
+        { title: 'Phase 3: Code Generation', icon: '⚙️', color: 'from-green-500 to-emerald-500' },
+        { title: 'Phase 4: Security Audit', icon: '🔐', color: 'from-yellow-500 to-orange-500' },
+        { title: 'Phase 5: ABI Generation', icon: '📋', color: 'from-red-500 to-rose-500' },
+        { title: 'Phase 6: MCP Server Generation', icon: '🤖', color: 'from-indigo-500 to-purple-500' },
+        { title: 'Phase 7: Quality Evaluation', icon: '📊', color: 'from-teal-500 to-cyan-500' }
+      ];
+
+      // Start translation process - WITH REAL-TIME SERVER-SENT EVENTS STREAMING AND AUDIT APPROVAL
+      const startTranslation = async () => {
+        setPhase(1);
+
+        if (!contractText || !contractText.trim()) {
+          alert("Please enter a contract description first");
+          return;
+        }
+
+        try {
+          // Create FormData with the text contract
+          const formData = new FormData();
+          formData.append('contract_text', contractText);
+          formData.append('contract_type', contractType);
+
+          // Add ground truth code if available
+          if (groundTruthCode && groundTruthCode.trim()) {
+            formData.append('ground_truth_code', groundTruthCode);
+            console.log('📊 Including ground truth code for comparison');
+          }
+
+          console.log('🔵 Starting real-time SSE stream to /api/translate-stream');
+          console.log('   Contract text length:', contractText.length);
+
+          // Call the translation API with Server-Sent Events
+          const response = await fetch('http://localhost:5000/api/translate-stream', {
+            method: 'POST',
+            body: formData
+          });
+
+          console.log('🟡 SSE connection established, status:', response.status);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ API error response:', errorText);
+            throw new Error(`API error (${response.status}): ${errorText.substring(0, 200)}`);
+          }
+
+          // Read SSE stream
+          console.log('🟡 Opening event stream reader...');
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              console.log('🟢 SSE stream ended');
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines[lines.length - 1]; // Keep incomplete line in buffer
+
+            for (let i = 0; i < lines.length - 1; i++) {
+              const line = lines[i];
+              if (line.startsWith('data: ')) {
+                try {
+                  const eventData = JSON.parse(line.slice(6));
+                  console.log(`📡 Phase ${eventData.phase} event received:`, eventData.data.message);
+
+                  if (eventData.error) {
+                    console.error('❌ Stream error:', eventData.error);
+                    throw new Error(eventData.error);
+                  }
+
+                  // Handle Phase 4 (Security Audit) with approval pause
+                  if (eventData.phase === 4 && eventData.status === 'needs_approval') {
+                    console.log('⏸️  Security audit needs approval - showing modal...');
+                    setPhase(4);
+                    setAuditData(eventData.data);
+                    setCurrentSessionId(eventData.session_id);
+
+                    setCurrentPhaseInfo({
+                      title: 'Security Audit - Review Required',
+                      status: '⏸️ Waiting for Approval',
+                      output: `Security issues detected - please review and approve to continue`,
+                      progress: 65
+                    });
+
+                    // Show the audit modal
+                    setShowAuditModal(true);
+
+                    // Wait for user to make a decision
+                    // This will be handled by the handleAuditApproval function
+                    continue; // Don't process further until user responds
+                  }
+
+                  // Update UI based on phase (ignore non-numeric phases like 'ground_truth')
+                  const phaseNum = eventData.phase;
+                  const isNumericPhase = typeof phaseNum === 'number';
+                  if (isNumericPhase) {
+                    setPhase(phaseNum);
+
+                    const progressMap = { 1: 20, 2: 30, 3: 45, 4: 60, 5: 75, 6: 90, 7: 100 };
+                    const titleMap = {
+                      1: 'Document Processing',
+                      2: 'Contract Analysis',
+                      3: 'Code Generation',
+                      4: 'Security Audit',
+                      5: 'ABI Generation',
+                      6: 'MCP Server Generation',
+                      7: 'Quality Evaluation'
+                    };
+
+                    setCurrentPhaseInfo({
+                      title: titleMap[phaseNum] || `Phase ${phaseNum}`,
+                      status: '✓ Complete',
+                      output: eventData.data.message,
+                      progress: progressMap[phaseNum] || 0
+                    });
+                  }
+
+                  // Store generated data as we receive it
+                  // Phase 2: Capture schema from Contract Analysis
+                  if (phaseNum === 2 && eventData.data) {
+                    const schemaToStore = eventData.data.schema || eventData.data;
+                    setGeneratedData(prev => ({ ...prev, schema: schemaToStore }));
+                    console.log('✅ Schema stored from Phase 2:', {
+                      contract_type: schemaToStore.contract_type,
+                      parties_count: Array.isArray(schemaToStore.parties) ? schemaToStore.parties.length : 0,
+                      terms_count: Array.isArray(schemaToStore.financial_terms) ? schemaToStore.financial_terms.length : 0
+                    });
+                  }
+
+                  if (eventData.data.solidity) {
+                    setGeneratedData(prev => ({ ...prev, solidity: eventData.data.solidity }));
+                    console.log('✅ Solidity code stored:', eventData.data.solidity.substring(0, 100) + '...');
+                  }
+                  if (eventData.data.abi) {
+                    const abiData = typeof eventData.data.abi === 'string'
+                      ? eventData.data.abi
+                      : JSON.stringify(eventData.data.abi, null, 2);
+                    setGeneratedData(prev => ({ ...prev, abi: abiData }));
+                    console.log('✅ ABI stored');
+                  }
+                  if (eventData.data.mcp_server) {
+                    setGeneratedData(prev => ({ ...prev, mcp: eventData.data.mcp_server }));
+                    console.log('✅ MCP server code stored');
+                  }
+                  if (eventData.data.quality_evaluation) {
+                    setGeneratedData(prev => ({ ...prev, quality: eventData.data.quality_evaluation }));
+                    console.log('✅ Quality evaluation stored');
+                  }
+
+                  // Handle ground truth comparison event
+                  if (eventData.phase === 'ground_truth' && eventData.data) {
+                    console.log('📊 Ground truth event received:', eventData.data);
+                    console.log('  - Metrics:', eventData.data.metrics);
+                    console.log('  - Current phase before update:', phase);
+                    setGeneratedData(prev => ({
+                      ...prev,
+                      groundTruthComparison: eventData.data
+                    }));
+                    console.log('✅ Ground truth comparison:', {
+                      generated: eventData.data.generated_score,
+                      groundTruth: eventData.data.ground_truth_score,
+                      delta: eventData.data.score_delta,
+                      result: eventData.data.comparison.result
+                    });
+                    console.log('  - Current phase after update:', phase);
+                  }
+
+                } catch (e) {
+                  console.error('❌ Failed to parse SSE event:', line, e);
+                }
+              }
+            }
+          }
+
+          console.log('🟢 All phases completed successfully!');
+
+        } catch (error) {
+          console.error('❌ Translation error caught:', error);
+          console.error('Error name:', error.name);
+          console.error('Error message:', error.message);
+          console.error('Error stack:', error.stack);
+          setPhase(0);
+          const errorMessage = error.message || 'Unknown error occurred';
+          alert(`Translation failed: ${errorMessage}`);
+        }
+      };
+
+      // Handle audit approval/rejection
+      const handleAuditApproval = async (approved) => {
+        console.log(`📝 User ${approved ? 'approved' : 'rejected'} security audit`);
+
+        try {
+          // Send approval to backend
+          const response = await fetch('http://localhost:5000/api/audit-approval', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: currentSessionId,
+              approved: approved
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to send approval');
+          }
+
+          console.log('✓ Approval sent to backend');
+          setShowAuditModal(false);
+
+          if (approved) {
+            setCurrentPhaseInfo(prev => ({
+              ...prev,
+              status: '✓ Approved',
+              output: 'Continuing with translation...'
+            }));
+          }
+        } catch (error) {
+          console.error('Approval error:', error);
+        }
+      };
+
+      const downloadFile = (content, filename) => {
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      // Copy to clipboard
+      const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+        alert('Copied to clipboard!');
+      };
+
+      return (
+        <div className="min-h-screen py-8 px-4">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-12">
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent mb-3 leading-none">
+                Agentics Smart Contract Translator
+              </h1>
+              <p className="text-gray-300 text-lg">End-to-End Smart Contract Generation Demo</p>
+            </div>
+
+            {/* Phase 0: Text Contract Input & Contract Type Selection */}
+            {phase === 0 && (
+              <div className="bg-gray-800 rounded-2xl p-8 mb-8 border border-gray-700">
+                <h2 className="text-2xl font-bold text-white mb-6">📝 Enter Contract Description</h2>
+
+                <div className="bg-blue-900/30 rounded-lg p-4 border border-blue-400 mb-6">
+                  <p className="text-sm text-blue-200 font-semibold mb-2">🔬 Research Mode</p>
+                  <p className="text-xs text-gray-300">
+                    This demo now uses natural language contract descriptions from a research dataset.
+                    Enter a contract requirement below to generate a smart contract.
+                  </p>
+                </div>
+
+                {/* Text Input Section */}
+                <div className="mb-8">
+                  <label className="block text-white font-semibold mb-3">
+                    Contract Description (Natural Language)
+                  </label>
+                  <textarea
+                    value={contractText}
+                    onChange={(e) => setContractText(e.target.value)}
+                    placeholder="Example: This smart contract is a [rental agreement] for property leasing. The main functions include [rent payment, security deposit management, and lease termination]. The contract manages [landlord and tenant addresses, monthly rent amount, and lease duration]..."
+                    className="w-full h-64 px-4 py-3 bg-gray-900 text-white rounded-lg border-2 border-purple-500 focus:border-cyan-500 focus:outline-none font-mono text-sm"
+                  />
+                  <p className="text-gray-400 text-xs mt-2">
+                    💡 Paste a natural language contract description. The AI will analyze it and generate a complete smart contract.
+                  </p>
+                </div>
+
+                {/* Character Count */}
+                {contractText && (
+                  <div className="bg-gray-700 rounded-lg p-4 mb-8 border border-purple-500">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">✓</span>
+                        <div>
+                          <p className="text-white font-semibold">{contractText.length} characters entered</p>
+                          <p className="text-sm text-gray-400">Ready for translation</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setContractText('')}
+                        className="text-gray-400 hover:text-white transition-all"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Select Contract Type */}
+                {contractText && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-bold text-white mb-4">Detected Contract Type</h3>
+                    <div className="bg-gray-700 rounded-lg p-6">
+                      <div className="flex items-center gap-4 mb-4">
+                        <span className="text-4xl">{contractTypes.find(t => t.id === contractType)?.icon}</span>
+                        <div>
+                          <p className="text-white font-bold text-lg">{contractTypes.find(t => t.id === contractType)?.name}</p>
+                          <p className="text-gray-400 text-sm">Based on filename analysis</p>
+                        </div>
+                      </div>
+                      <p className="text-gray-300 text-sm mb-4">💡 You can manually override this by selecting a different type below</p>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {contractTypes.map(type => (
+                          <button
+                            key={type.id}
+                            onClick={() => setContractType(type.id)}
+                            className={`p-3 rounded-lg border-2 transition-all font-semibold text-sm ${
+                              contractType === type.id
+                                ? 'border-purple-500 bg-purple-900 text-white'
+                                : 'border-gray-600 bg-gray-800 text-gray-300 hover:border-gray-500'
+                            }`}
+                          >
+                            {type.icon} {type.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Start Button */}
+                <button
+                  onClick={startTranslation}
+                  disabled={!contractText || !contractText.trim()}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed transition-all"
+                >
+                  {contractText && contractText.trim() ? '🚀 Start 7-Phase Translation' : '📝 Enter Contract Text to Begin'}
+                </button>
+              </div>
+            )}
+
+            {/* Phases 1-5: Process Display */}
+            {phase > 0 && phase < 7 && (
+              <div className="bg-gray-800 rounded-2xl p-8 mb-8 border border-gray-700">
+                <StepIndicator
+                  current={phase}
+                  total={7}
+                  labels={phaseDescriptions.map(p => p.title.split(':')[1].trim())}
+                />
+
+                {/* Current Phase Animation */}
+                <div className={`bg-gradient-to-r ${phaseDescriptions[phase - 1].color} rounded-xl p-8 text-center mb-6`}>
+                  <div className="text-6xl mb-4">{phaseDescriptions[phase - 1].icon}</div>
+                  <h3 className="text-2xl font-bold text-white">{phaseDescriptions[phase - 1].title}</h3>
+                </div>
+
+                {/* Phase Status */}
+                {currentPhaseInfo.title && (
+                  <div className="bg-gray-700 rounded-lg p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-white">{currentPhaseInfo.title}</h4>
+                      <span className="text-green-400 font-bold">{currentPhaseInfo.status}</span>
+                    </div>
+                    <p className="text-gray-300 mb-4">{currentPhaseInfo.output}</p>
+                    <div className="w-full bg-gray-600 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all"
+                        style={{ width: `${currentPhaseInfo.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Generated Code Preview */}
+                {phase === 3 && generatedData.solidity && (
+                  <div className="bg-gray-700 rounded-lg p-4 mb-6">
+                    <h4 className="text-white font-semibold mb-2">📄 Solidity Contract Preview</h4>
+                    <textarea
+                      value={generatedData.solidity}
+                      readOnly
+                      className="w-full h-64 p-3 bg-gray-900 text-green-400 font-mono text-xs rounded border border-gray-600"
+                    />
+                  </div>
+                )}
+
+                {phase === 5 && generatedData.abi && (
+                  <div className="bg-gray-700 rounded-lg p-4 mb-6">
+                    <h4 className="text-white font-semibold mb-2">📋 ABI Preview</h4>
+                    <textarea
+                      value={generatedData.abi}
+                      readOnly
+                      className="w-full h-48 p-3 bg-gray-900 text-cyan-400 font-mono text-xs rounded border border-gray-600 overflow-auto"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Post-Generation: Download Phase */}
+            {phase === 7 && (
+              <div className="grid grid-cols-1 gap-8">
+                {/* View Toggle Buttons - Only show when ground truth comparison is available */}
+                {generatedData.groundTruthComparison && (
+                  <div className="flex gap-4 mb-6">
+                    <button
+                      onClick={() => setActiveView('quality')}
+                      className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+                        activeView === 'quality'
+                          ? 'bg-purple-600 text-white border-2 border-purple-400'
+                          : 'bg-gray-800 text-gray-300 border-2 border-gray-600 hover:border-purple-400'
+                      }`}
+                    >
+                      📊 Quality Evaluation
+                    </button>
+                    <button
+                      onClick={() => setActiveView('comparison')}
+                      className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+                        activeView === 'comparison'
+                          ? 'bg-indigo-600 text-white border-2 border-indigo-400'
+                          : 'bg-gray-800 text-gray-300 border-2 border-gray-600 hover:border-indigo-400'
+                      }`}
+                    >
+                      🔬 Ground Truth Comparison
+                    </button>
+                  </div>
+                )}
+
+                {/* Quality Evaluation Results */}
+                {activeView === 'quality' && generatedData.quality && (
+                  <div className="bg-gradient-to-br from-teal-900 to-cyan-900 rounded-2xl p-8 border-2 border-teal-500">
+                    <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                      📊 Quality Evaluation Results
+                    </h3>
+
+                    {/* Final Score Card */}
+                    <div className="bg-gray-900 rounded-lg p-6 mb-6 border border-teal-400">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="text-xl font-bold text-white">Final Score</h4>
+                          <p className="text-sm text-gray-400">Composite weighted evaluation</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-4xl font-bold text-teal-300">
+                            {generatedData.quality.composite_score?.final_score?.toFixed(1) || '0.0'}<span className="text-2xl text-gray-400">/100</span>
+                          </div>
+                          <div className="text-2xl font-bold text-yellow-400 mt-1">
+                            Grade: {generatedData.quality.composite_score?.grade || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 transition-all duration-1000"
+                          style={{ width: `${generatedData.quality.composite_score?.final_score || 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Metrics Breakdown */}
+                    <div className="grid md:grid-cols-2 gap-4 mb-6">
+                      {/* Metric 1: Functional Completeness */}
+                      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                        <div className="flex justify-between items-center mb-2">
+                          <h5 className="font-semibold text-white">⚙️ Functional Completeness</h5>
+                          <span className="text-lg font-bold text-purple-400">
+                            {generatedData.quality.metric_1_functional_completeness?.score || 0}/100
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="h-full bg-purple-500 rounded-full" style={{ width: `${generatedData.quality.metric_1_functional_completeness?.score || 0}%` }}></div>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">Weight: 25%</p>
+                      </div>
+
+                      {/* Metric 2: Variable Fidelity */}
+                      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                        <div className="flex justify-between items-center mb-2">
+                          <h5 className="font-semibold text-white">📝 Variable Fidelity</h5>
+                          <span className="text-lg font-bold text-blue-400">
+                            {generatedData.quality.metric_2_variable_fidelity?.score || 0}/100
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${generatedData.quality.metric_2_variable_fidelity?.score || 0}%` }}></div>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">Weight: 15%</p>
+                      </div>
+
+                      {/* Metric 3: State Machine */}
+                      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                        <div className="flex justify-between items-center mb-2">
+                          <h5 className="font-semibold text-white">🔄 State Machine Correctness</h5>
+                          <span className="text-lg font-bold text-green-400">
+                            {generatedData.quality.metric_3_state_machine?.score || 0}/100
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="h-full bg-green-500 rounded-full" style={{ width: `${generatedData.quality.metric_3_state_machine?.score || 0}%` }}></div>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">Weight: 15%</p>
+                      </div>
+
+                      {/* Metric 4: Business Logic */}
+                      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                        <div className="flex justify-between items-center mb-2">
+                          <h5 className="font-semibold text-white">💼 Business Logic Fidelity</h5>
+                          <span className="text-lg font-bold text-orange-400">
+                            {generatedData.quality.metric_4_business_logic?.score || 0}/100
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="h-full bg-orange-500 rounded-full" style={{ width: `${generatedData.quality.metric_4_business_logic?.score || 0}%` }}></div>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">Weight: 35% (Most Important)</p>
+                      </div>
+
+                      {/* Metric 5: Code Quality */}
+                      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 md:col-span-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <h5 className="font-semibold text-white">✨ Code Quality</h5>
+                          <span className="text-lg font-bold text-teal-400">
+                            {generatedData.quality.metric_5_code_quality?.score || 0}/100
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="h-full bg-teal-500 rounded-full" style={{ width: `${generatedData.quality.metric_5_code_quality?.score || 0}%` }}></div>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">Weight: 10%</p>
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    {generatedData.quality.summary && (
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {/* Strengths */}
+                        {generatedData.quality.summary.strengths && generatedData.quality.summary.strengths.length > 0 && (
+                          <div className="bg-green-900/30 rounded-lg p-4 border border-green-600">
+                            <h5 className="font-semibold text-green-300 mb-2">✅ Strengths</h5>
+                            <ul className="text-sm text-gray-300 space-y-1">
+                              {generatedData.quality.summary.strengths.slice(0, 3).map((s, i) => (
+                                <li key={i}>• {s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Weaknesses */}
+                        {generatedData.quality.summary.weaknesses && generatedData.quality.summary.weaknesses.length > 0 && (
+                          <div className="bg-red-900/30 rounded-lg p-4 border border-red-600">
+                            <h5 className="font-semibold text-red-300 mb-2">⚠️ Weaknesses</h5>
+                            <ul className="text-sm text-gray-300 space-y-1">
+                              {generatedData.quality.summary.weaknesses.slice(0, 3).map((w, i) => (
+                                <li key={i}>• {w}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Ground Truth Comparison - Independent section outside phase 7 */}
+            {activeView === 'comparison' && generatedData.groundTruthComparison && generatedData.groundTruthComparison.metrics && (
+              <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-2xl p-8 border-2 border-indigo-500">
+                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                  🔬 Ground Truth Comparison
+                </h3>
+
+                {/* Summary Cards */}
+                <div className="grid md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-800 rounded-lg p-4 border border-blue-500">
+                    <h5 className="font-semibold text-blue-300 mb-2">🤖 Generated Code</h5>
+                    <div className="text-3xl font-bold text-blue-400">
+                      {(generatedData.groundTruthComparison.generated_score || 0).toFixed(1)}<span className="text-xl text-gray-400">/100</span>
+                    </div>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4 border border-green-500">
+                    <h5 className="font-semibold text-green-300 mb-2">✅ Ground Truth Code</h5>
+                    <div className="text-3xl font-bold text-green-400">
+                      {(generatedData.groundTruthComparison.ground_truth_score || 0).toFixed(1)}<span className="text-xl text-gray-400">/100</span>
+                    </div>
+                  </div>
+                  <div className="bg-gray-800 rounded-lg p-4 border border-purple-500">
+                    <h5 className="font-semibold text-purple-300 mb-2">📊 Difference</h5>
+                    <div className={`text-3xl font-bold ${(generatedData.groundTruthComparison.score_delta || 0) >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                      {(generatedData.groundTruthComparison.score_delta || 0) >= 0 ? '+' : ''}{(generatedData.groundTruthComparison.score_delta || 0).toFixed(1)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metric Comparison */}
+                <div className="space-y-3">
+                  <h4 className="text-lg font-bold text-white mb-3">📈 Detailed Breakdown</h4>
+
+                  {/* Functional Completeness */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium">⚙️ Functional Completeness</span>
+                      <span className="text-sm text-gray-400">Weight: 25%</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <div className="text-xs text-blue-300 mb-1">Generated: {(generatedData.quality?.metric_1_functional_completeness?.score || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{width: `${generatedData.quality?.metric_1_functional_completeness?.score || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-green-300 mb-1">Ground Truth: {(generatedData.groundTruthComparison.metrics.functional_completeness || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-green-500 h-2 rounded-full" style={{width: `${generatedData.groundTruthComparison.metrics.functional_completeness || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className={`text-sm font-semibold ${((generatedData.quality?.metric_1_functional_completeness?.score || 0) - (generatedData.groundTruthComparison.metrics.functional_completeness || 0)) >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                        {((generatedData.quality?.metric_1_functional_completeness?.score || 0) - (generatedData.groundTruthComparison.metrics.functional_completeness || 0)) >= 0 ? '+' : ''}{((generatedData.quality?.metric_1_functional_completeness?.score || 0) - (generatedData.groundTruthComparison.metrics.functional_completeness || 0)).toFixed(1)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Variable Fidelity */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium">🔤 Variable Fidelity</span>
+                      <span className="text-sm text-gray-400">Weight: 15%</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <div className="text-xs text-blue-300 mb-1">Generated: {(generatedData.quality?.metric_2_variable_fidelity?.score || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{width: `${generatedData.quality?.metric_2_variable_fidelity?.score || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-green-300 mb-1">Ground Truth: {(generatedData.groundTruthComparison.metrics.variable_fidelity || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-green-500 h-2 rounded-full" style={{width: `${generatedData.groundTruthComparison.metrics.variable_fidelity || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className={`text-sm font-semibold ${((generatedData.quality?.metric_2_variable_fidelity?.score || 0) - (generatedData.groundTruthComparison.metrics.variable_fidelity || 0)) >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                        {((generatedData.quality?.metric_2_variable_fidelity?.score || 0) - (generatedData.groundTruthComparison.metrics.variable_fidelity || 0)) >= 0 ? '+' : ''}{((generatedData.quality?.metric_2_variable_fidelity?.score || 0) - (generatedData.groundTruthComparison.metrics.variable_fidelity || 0)).toFixed(1)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* State Machine Modeling */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium">🔄 State Machine Modeling</span>
+                      <span className="text-sm text-gray-400">Weight: 15%</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <div className="text-xs text-blue-300 mb-1">Generated: {(generatedData.quality?.metric_3_state_machine?.score || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{width: `${generatedData.quality?.metric_3_state_machine?.score || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-green-300 mb-1">Ground Truth: {(generatedData.groundTruthComparison.metrics.state_machine || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-green-500 h-2 rounded-full" style={{width: `${generatedData.groundTruthComparison.metrics.state_machine || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className={`text-sm font-semibold ${((generatedData.quality?.metric_3_state_machine?.score || 0) - (generatedData.groundTruthComparison.metrics.state_machine || 0)) >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                        {((generatedData.quality?.metric_3_state_machine?.score || 0) - (generatedData.groundTruthComparison.metrics.state_machine || 0)) >= 0 ? '+' : ''}{((generatedData.quality?.metric_3_state_machine?.score || 0) - (generatedData.groundTruthComparison.metrics.state_machine || 0)).toFixed(1)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Business Logic */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium">💼 Business Logic</span>
+                      <span className="text-sm text-gray-400">Weight: 35%</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <div className="text-xs text-blue-300 mb-1">Generated: {(generatedData.quality?.metric_4_business_logic?.score || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{width: `${generatedData.quality?.metric_4_business_logic?.score || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-green-300 mb-1">Ground Truth: {(generatedData.groundTruthComparison.metrics.business_logic || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-green-500 h-2 rounded-full" style={{width: `${generatedData.groundTruthComparison.metrics.business_logic || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className={`text-sm font-semibold ${((generatedData.quality?.metric_4_business_logic?.score || 0) - (generatedData.groundTruthComparison.metrics.business_logic || 0)) >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                        {((generatedData.quality?.metric_4_business_logic?.score || 0) - (generatedData.groundTruthComparison.metrics.business_logic || 0)) >= 0 ? '+' : ''}{((generatedData.quality?.metric_4_business_logic?.score || 0) - (generatedData.groundTruthComparison.metrics.business_logic || 0)).toFixed(1)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Code Quality */}
+                  <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium">✨ Code Quality</span>
+                      <span className="text-sm text-gray-400">Weight: 10%</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <div className="text-xs text-blue-300 mb-1">Generated: {(generatedData.quality?.metric_5_code_quality?.score || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{width: `${generatedData.quality?.metric_5_code_quality?.score || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-green-300 mb-1">Ground Truth: {(generatedData.groundTruthComparison.metrics.code_quality || 0).toFixed(1)}</div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div className="bg-green-500 h-2 rounded-full" style={{width: `${generatedData.groundTruthComparison.metrics.code_quality || 0}%`}}></div>
+                        </div>
+                      </div>
+                      <div className={`text-sm font-semibold ${((generatedData.quality?.metric_5_code_quality?.score || 0) - (generatedData.groundTruthComparison.metrics.code_quality || 0)) >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                        {((generatedData.quality?.metric_5_code_quality?.score || 0) - (generatedData.groundTruthComparison.metrics.code_quality || 0)) >= 0 ? '+' : ''}{((generatedData.quality?.metric_5_code_quality?.score || 0) - (generatedData.groundTruthComparison.metrics.code_quality || 0)).toFixed(1)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="mt-6 pt-4 border-t border-gray-700">
+                  <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                      <span className="text-gray-300">Generated Code</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                      <span className="text-gray-300">Ground Truth</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-400 font-semibold">+</span>
+                      <span className="text-gray-300">Generated scored higher</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-orange-400 font-semibold">-</span>
+                      <span className="text-gray-300">Ground truth scored higher</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Overall Summary */}
+                <div className={`rounded-lg p-4 border mt-6 ${(generatedData.groundTruthComparison.score_delta || 0) >= 0 ? 'bg-green-900/30 border-green-600' : 'bg-orange-900/30 border-orange-600'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{(generatedData.groundTruthComparison.score_delta || 0) >= 0 ? '🎉' : '📈'}</span>
+                    <div>
+                      <h5 className={`font-semibold ${(generatedData.groundTruthComparison.score_delta || 0) >= 0 ? 'text-green-300' : 'text-orange-300'}`}>
+                        {(generatedData.groundTruthComparison.score_delta || 0) >= 0 ? 'Generated code scored higher!' : 'Ground truth scored higher'}
+                      </h5>
+                      <p className="text-sm text-gray-300">
+                        Overall score difference: {Math.abs(generatedData.groundTruthComparison.score_delta || 0).toFixed(1)} points
+                        {(generatedData.groundTruthComparison.score_delta || 0) >= 0 ? ' in favor of generated code' : ' in favor of ground truth'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {phase === 7 && (
+              <div>
+                {/* Generated Artifacts */}
+                <div className="space-y-6">
+                  {/* Generated Outputs */}
+                  <div className="bg-gradient-to-br from-blue-900 to-purple-900 rounded-2xl p-8 border-2 border-blue-500">
+                    <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                      📦 Generated Artifacts
+                    </h3>
+
+                    <div className="space-y-4">
+                      <p className="text-gray-300 mb-6">
+                        Your smart contract has been successfully generated and evaluated! Download the files below for research, analysis, or manual deployment.
+                      </p>
+
+                      <div className="bg-gray-900 rounded-lg p-4 border border-green-600 space-y-3">
+                        <div className="flex items-center gap-2 text-green-400 font-semibold">
+                          <span>✅</span>
+                          <span>Translation Complete</span>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          All 7 phases finished successfully. Files are ready for download.
+                        </p>
+                      </div>
+
+                      <div className="bg-blue-900/30 rounded-lg p-4 border border-blue-400">
+                        <p className="text-sm text-blue-200 font-semibold mb-2">💡 Research Focus</p>
+                        <p className="text-xs text-gray-300">
+                          This project focuses on evaluating smart contract generation quality.
+                          You can manually deploy contracts for testing using Remix IDE or other tools.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Download Artifacts */}
+                  <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700">
+                    <h3 className="text-lg font-bold text-white mb-4 flex items-center">
+                      {icons.file()}
+                      Download Generated Files
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <button
+                        onClick={() => downloadFile(generatedData.solidity, `${contractType}_contract.sol`)}
+                        className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition-all"
+                      >
+                        📥 .sol File
+                      </button>
+                      <button
+                        onClick={() => downloadFile(generatedData.abi, `${contractType}_contract.abi.json`)}
+                        className="w-full px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded text-sm font-semibold transition-all"
+                      >
+                        📥 ABI File
+                      </button>
+                      <button
+                        onClick={() => downloadFile(generatedData.mcp, `${contractType}_mcp_server.py`)}
+                        className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-semibold transition-all"
+                      >
+                        📥 MCP Server
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* How It Works Section */}
+            {phase === 0 && (
+              <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700 mt-8">
+                <h2 className="text-2xl font-bold text-white mb-6">📚 How It Works</h2>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div>
+                    <h3 className="text-lg font-bold text-purple-400 mb-4">7-Phase Translation Process</h3>
+                    <ol className="space-y-3 text-gray-300 text-sm">
+                      <li><strong>Phase 1:</strong> Document Processing - Extract text from PDF</li>
+                      <li><strong>Phase 2:</strong> Contract Analysis - Parse parties, terms, conditions</li>
+                      <li><strong>Phase 3:</strong> Code Generation - Generate Solidity smart contract</li>
+                      <li><strong>Phase 4:</strong> Security Audit - Identify vulnerabilities</li>
+                      <li><strong>Phase 5:</strong> ABI Generation - Create contract interface</li>
+                      <li><strong>Phase 6:</strong> MCP Server - Generate FastMCP server</li>
+                      <li><strong>Phase 7:</strong> Quality Evaluation - Comprehensive quality metrics</li>
+                    </ol>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-cyan-400 mb-4">Research & Quality Evaluation</h3>
+                    <ol className="space-y-3 text-gray-300 text-sm">
+                      <li>✅ <strong>Semantic Translation:</strong> 7-phase AI-powered pipeline</li>
+                      <li>✅ <strong>Security Analysis:</strong> Automated vulnerability detection</li>
+                      <li>✅ <strong>Code Quality:</strong> Generate compilable Solidity contracts</li>
+                      <li>✅ <strong>Quality Metrics:</strong> 5-dimensional evaluation framework</li>
+                      <li>✅ <strong>Schema Extraction:</strong> Parse natural language to structured data</li>
+                      <li>✅ <strong>Download Artifacts:</strong> .sol, ABI, security reports, quality evaluation</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Security Audit Approval Modal */}
+            {showAuditModal && auditData && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-gray-800 rounded-2xl max-w-2xl w-full max-h-96 overflow-y-auto border-2 border-yellow-500 shadow-2xl">
+                  {/* Modal Header */}
+                  <div className="bg-gradient-to-r from-yellow-600 to-orange-600 p-6 border-b border-yellow-500">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                      🔐 Security Audit Review Required
+                    </h2>
+                    <p className="text-yellow-100 text-sm mt-2">The security audit found issues that need your review</p>
+                  </div>
+
+                  {/* Modal Content */}
+                  <div className="p-6 space-y-4">
+                    {/* Severity Badge */}
+                    <div className="flex items-center gap-3">
+                      <span className={`px-4 py-2 rounded-lg font-bold text-white ${
+                        auditData.severity_level === 'critical' ? 'bg-red-600' :
+                        auditData.severity_level === 'high' ? 'bg-orange-600' :
+                        auditData.severity_level === 'medium' ? 'bg-yellow-600' :
+                        'bg-blue-600'
+                      }`}>
+                        Severity: {auditData.severity_level?.toUpperCase()}
+                      </span>
+                      <span className="text-gray-300">
+                        Security Score: <span className="font-bold text-lg">{auditData.security_score}</span>
+                      </span>
+                    </div>
+
+                    {/* Issues Found */}
+                    {auditData.issues && auditData.issues.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-bold text-red-400 mb-3">🚨 Issues Found ({auditData.issues.length})</h3>
+                        <div className="space-y-2 bg-gray-900 p-4 rounded-lg border border-red-900 max-h-40 overflow-y-auto">
+                          {auditData.issues.map((issue, idx) => (
+                            <div key={idx} className="text-gray-300 text-sm flex gap-2">
+                              <span className="text-red-400 flex-shrink-0">•</span>
+                              <span>{issue}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recommendations */}
+                    {auditData.recommendations && auditData.recommendations.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-bold text-blue-400 mb-3">💡 Recommendations</h3>
+                        <div className="space-y-2 bg-gray-900 p-4 rounded-lg border border-blue-900 max-h-40 overflow-y-auto">
+                          {auditData.recommendations.map((rec, idx) => (
+                            <div key={idx} className="text-gray-300 text-sm flex gap-2">
+                              <span className="text-blue-400 flex-shrink-0">→</span>
+                              <span>{rec}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Vulnerability Count */}
+                    {auditData.vulnerability_count !== undefined && (
+                      <div className="text-gray-300 text-sm">
+                        Total Vulnerabilities: <span className="font-bold text-yellow-400">{auditData.vulnerability_count}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modal Footer - Action Buttons */}
+                  <div className="bg-gray-700 p-6 border-t border-gray-600 flex gap-4 justify-end">
+                    <button
+                      onClick={() => handleAuditApproval(false)}
+                      className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all"
+                    >
+                      ❌ Reject & Cancel
+                    </button>
+                    <button
+                      onClick={() => handleAuditApproval(true)}
+                      className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all"
+                    >
+                      ✅ Approve & Continue
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<ContractTranslatorDemo />);
+  </script>
+</body>
+</html>

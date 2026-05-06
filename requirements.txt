@@ -1,0 +1,49 @@
+# ── Core LLM / Agent frameworks ─────────────────────────────────────────────
+crewai
+openai
+
+# ── Web / API ────────────────────────────────────────────────────────────────
+flask
+flask-cors
+fastmcp
+
+# ── MCP / Blockchain ─────────────────────────────────────────────────────────
+mcp
+web3
+
+# ── Data / ML ────────────────────────────────────────────────────────────────
+pydantic
+pandas
+numpy
+scikit-learn
+hnswlib
+sentence-transformers
+scipy
+
+# ── LLM tooling / observability ─────────────────────────────────────────────
+langchain-core
+loguru
+tqdm
+httpx
+numerize
+mellea
+
+# ── PDF / Document ───────────────────────────────────────────────────────────
+PyPDF2
+reportlab
+
+# ── CLI / Terminal UI ────────────────────────────────────────────────────────
+click
+rich
+
+# ── Environment / Config ─────────────────────────────────────────────────────
+python-dotenv
+
+# Solidity analysis (optional, needed for experiment_4_slither.py)
+slither-analyzer
+
+# Statistics (optional, needed for experiment_utils.py)
+# scipy already listed above
+
+# YAML
+pyyaml

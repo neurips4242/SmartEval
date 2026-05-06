@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Contract Sampler & Batch Evaluator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 {
+            color: #00d4ff;
+        }
+        .controls {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .batch-controls {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #00d4ff;
+        }
+        .batch-controls h2 {
+            color: #00d4ff;
+            margin-top: 0;
+        }
+        input[type="number"] {
+            background: #0f1419;
+            border: 1px solid #00d4ff;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 5px;
+            width: 150px;
+            margin-right: 10px;
+        }
+        button {
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #00a8cc;
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        .contract-display {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .contract-text {
+            background: #0f1419;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #00d4ff;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .metadata {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .metadata-item {
+            background: #0f1419;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .metadata-label {
+            color: #888;
+            font-size: 12px;
+        }
+        .metadata-value {
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        .batch-progress {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #0f1419;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: bold;
+        }
+        .batch-results {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        .stat-card {
+            background: #0f1419;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            border-left: 4px solid #00d4ff;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .stat-label {
+            color: #888;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .chart-container {
+            background: #0f1419;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .results-table th,
+        .results-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        .results-table th {
+            background: #0f1419;
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        .results-table tr:hover {
+            background: #1a1f2e;
+        }
+        .grade-A { color: #00ff88; }
+        .grade-B { color: #00d4ff; }
+        .grade-C { color: #ffaa00; }
+        .grade-D { color: #ff6b6b; }
+        .grade-F { color: #ff0000; }
+    </style>
+</head>
+<body>
+    <h1>Contract Dataset Sampler & Batch Evaluator</h1>
+    <p>Load sample contracts from the research dataset (requirement_fsm_code.jsonl) or run batch evaluations</p>
+
+    <!-- Single Contract Controls -->
+    <div class="controls">
+        <h2 style="margin-top: 0;">Single Contract Mode</h2>
+        <button onclick="loadRandomContract()">Load Random Contract</button>
+        <button onclick="copyToClipboard()">Copy Current Contract</button>
+        <button onclick="openInDemo()">Open in Demo</button>
+    </div>
+
+    <!-- Batch Processing Controls -->
+    <div class="batch-controls">
+        <h2>Batch Processing Mode</h2>
+        <p>Process multiple contracts through the 7-phase translation pipeline and get aggregate quality metrics.</p>
+        <div style="margin-bottom: 15px;">
+            <label for="numContracts" style="color: #fff;">Number of contracts:</label>
+            <input type="number" id="numContracts" min="1" max="1500" value="10" />
+            <button id="startBatchBtn" onclick="startBatchProcessing()">Start Batch Processing</button>
+            <button id="stopBatchBtn" onclick="stopBatchProcessing()" style="display:none; background: #ff6b6b;">Stop Processing</button>
+        </div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #00d4ff33;">
+            <label for="resumeBatchId" style="color: #fff;">Resume batch (optional):</label>
+            <input type="text" id="resumeBatchId" placeholder="batch_20260202_234755" style="width: 300px;" />
+            <button onclick="startBatchProcessing(document.getElementById('resumeBatchId').value)">Resume Batch</button>
+        </div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #00d4ff33;">
+            <label for="loadBatchId" style="color: #fff;">Load completed batch results:</label>
+            <input type="text" id="loadBatchId" placeholder="20260202_234755" style="width: 300px;" />
+            <button onclick="loadBatchResults(document.getElementById('loadBatchId').value)">Load Results</button>
+        </div>
+    </div>
+
+    <!-- Batch Progress Display -->
+    <div class="batch-progress" id="batchProgress">
+        <h2>Processing Contracts...</h2>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill">0%</div>
+        </div>
+        <p id="progressText">Starting batch processing...</p>
+        <div id="currentContractInfo" style="margin-top: 20px; padding: 15px; background: #0f1419; border-radius: 5px;">
+            <div id="phaseInfo"></div>
+        </div>
+    </div>
+
+    <!-- Batch Results Display -->
+    <div class="batch-results" id="batchResults">
+        <h2>Batch Evaluation Results</h2>
+
+        <!-- Summary Statistics -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+            <div class="stat-card">
+                <div class="stat-value" id="avgScore">--</div>
+                <div class="stat-label">Average Score</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalContracts">--</div>
+                <div class="stat-label">Contracts Processed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avgLatency">--</div>
+                <div class="stat-label">Avg Latency (s)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalTime">--</div>
+                <div class="stat-label">Total Time (s)</div>
+            </div>
+        </div>
+
+        <!-- Compilation Statistics -->
+        <div id="compilationStats" style="background: #0f1419; padding: 20px; border-radius: 5px; margin-bottom: 30px; display: none;">
+            <h3 style="color: #00d4ff; margin-top: 0;">Solidity Compilation Statistics</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                <div style="text-align: center;">
+                    <div id="compiledCount" style="font-size: 28px; font-weight: bold; color: #00ff88;">--</div>
+                    <div style="color: #888; font-size: 14px;">Compiled Successfully</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="compiledFailed" style="font-size: 28px; font-weight: bold; color: #ff6b6b;">--</div>
+                    <div style="color: #888; font-size: 14px;">Compilation Failed</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="compilationRate" style="font-size: 28px; font-weight: bold; color: #00d4ff;">--</div>
+                    <div style="color: #888; font-size: 14px;">Success Rate</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ground Truth Comparison -->
+        <div id="groundTruthStats" style="background: #0f1419; padding: 20px; border-radius: 5px; margin-bottom: 30px; display: none;">
+            <h3 style="color: #00d4ff; margin-top: 0;">Ground Truth vs Generated Code Comparison</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+                <div style="text-align: center;">
+                    <div id="gtAvgGenerated" style="font-size: 24px; font-weight: bold; color: #00d4ff;">--</div>
+                    <div style="color: #888; font-size: 14px;">Avg Generated Score</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="gtAvgGroundTruth" style="font-size: 24px; font-weight: bold; color: #ffaa00;">--</div>
+                    <div style="color: #888; font-size: 14px;">Avg Ground Truth Score</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="gtDelta" style="font-size: 24px; font-weight: bold; color: #fff;">--</div>
+                    <div style="color: #888; font-size: 14px;">Avg Delta</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="gtBetter" style="font-size: 24px; font-weight: bold; color: #00ff88;">--</div>
+                    <div style="color: #888; font-size: 14px;">Generated Better</div>
+                </div>
+                <div style="text-align: center;">
+                    <div id="gtWorse" style="font-size: 24px; font-weight: bold; color: #ff6b6b;">--</div>
+                    <div style="color: #888; font-size: 14px;">Ground Truth Better</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="chart-container">
+            <h3 style="color: #00d4ff;">Score Distribution</h3>
+            <canvas id="scoreDistChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3 style="color: #00d4ff;">Average Metric Scores</h3>
+            <canvas id="metricScoresChart"></canvas>
+        </div>
+
+        <div class="chart-container" style="max-width: 500px; margin: 20px auto;">
+            <h3 style="color: #00d4ff;">Grade Distribution</h3>
+            <canvas id="gradeDistChart"></canvas>
+        </div>
+
+        <!-- Ground Truth vs Generated Comparison Chart -->
+        <div class="chart-container" id="comparisonChartContainer" style="display: none;">
+            <h3 style="color: #00d4ff;">Ground Truth vs Generated Scores Comparison</h3>
+            <canvas id="comparisonChart"></canvas>
+        </div>
+
+        <!-- Detailed Metric Comparison Chart -->
+        <div class="chart-container" id="metricComparisonContainer" style="display: none;">
+            <h3 style="color: #00d4ff;">Detailed Metric Comparison: Generated vs Ground Truth</h3>
+            <canvas id="metricComparisonChart"></canvas>
+        </div>
+
+        <!-- Delta Visualization Chart -->
+        <div class="chart-container" id="deltaChartContainer" style="display: none;">
+            <h3 style="color: #00d4ff;">Score Delta Analysis (Generated - Ground Truth)</h3>
+            <canvas id="deltaChart"></canvas>
+        </div>
+
+        <!-- Individual Results Table -->
+        <h3 style="color: #00d4ff; margin-top: 30px;">Individual Contract Results</h3>
+        <table class="results-table" id="resultsTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Gen Score</th>
+                    <th>GT Score</th>
+                    <th>Delta</th>
+                    <th>Grade</th>
+                    <th>Compiled</th>
+                    <th>Latency</th>
+                    <th>Func Complete</th>
+                    <th>Var Fidelity</th>
+                    <th>State Machine</th>
+                    <th>Business Logic</th>
+                    <th>Code Quality</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Single Contract Display -->
+    <div class="contract-display" id="contractDisplay" style="display: none;">
+        <h2>Contract Description</h2>
+        <div class="contract-text" id="contractText"></div>
+
+        <div class="metadata" id="metadata"></div>
+    </div>
+
+    <script>
+        let currentContract = null;
+        let batchEventSource = null;
+        let batchResults = {
+            contracts: [],
+            aggregate: null,
+            statistics: {}
+        };
+        let charts = {};
+
+        // Single Contract Functions
+        async function loadRandomContract(retries = 0) {
+            console.log('Loading random contract from dataset...');
+
+            try {
+                const response = await fetch('http://localhost:5000/api/random-contract');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                currentContract = {
+                    user_requirement: data.user_requirement,
+                    version: data.version,
+                    fsm: data.fsm,
+                    reference_code: data.reference_code,
+                    total_contracts: data.total_contracts
+                };
+
+                console.log('Contract loaded from dataset:', currentContract);
+                displayContract();
+
+            } catch (error) {
+                console.error('Failed to load contract:', error);
+                // On page-load the API may not be ready yet — retry silently up to 10 times
+                if (retries < 10) {
+                    const delay = 1000 + retries * 500;
+                    console.log(`API not ready, retrying in ${delay}ms... (attempt ${retries + 1}/10)`);
+                    setTimeout(() => loadRandomContract(retries + 1), delay);
+                } else {
+                    alert('Failed to load contract from dataset. Make sure the API is running on http://localhost:5000');
+                }
+            }
+        }
+
+        function displayContract() {
+            if (!currentContract) return;
+
+            document.getElementById('contractDisplay').style.display = 'block';
+            document.getElementById('contractText').textContent = currentContract.user_requirement;
+
+            const metadata = document.getElementById('metadata');
+            metadata.innerHTML = `
+                <div class="metadata-item">
+                    <div class="metadata-label">Solidity Version</div>
+                    <div class="metadata-value">${currentContract.version || 'N/A'}</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Character Count</div>
+                    <div class="metadata-value">${currentContract.user_requirement.length}</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Dataset Size</div>
+                    <div class="metadata-value">${currentContract.total_contracts || 'Unknown'} contracts</div>
+                </div>
+            `;
+        }
+
+        function copyToClipboard() {
+            if (!currentContract) {
+                alert('No contract loaded');
+                return;
+            }
+
+            navigator.clipboard.writeText(currentContract.user_requirement).then(() => {
+                alert('Contract copied to clipboard!');
+            });
+        }
+
+        function openInDemo() {
+            if (!currentContract) {
+                alert('No contract loaded');
+                return;
+            }
+
+            localStorage.setItem('contract_text', currentContract.user_requirement);
+            localStorage.setItem('contract_type', 'other');
+
+            // Also save ground truth code for comparison
+            if (currentContract.reference_code) {
+                localStorage.setItem('ground_truth_code', currentContract.reference_code);
+                console.log(`✓ Saved ground truth code (${currentContract.reference_code.length} chars) to localStorage`);
+            } else {
+                console.warn('⚠️ No reference_code found in currentContract:', currentContract);
+            }
+
+            console.log('Saving to localStorage and opening demo...');
+            window.open('demo.html', '_blank');
+            alert('Contract loaded into demo! Check the new tab.');
+        }
+
+        // Batch Processing Functions
+        function startBatchProcessing(resumeBatchId = null) {
+            const numContracts = parseInt(document.getElementById('numContracts').value);
+
+            if (numContracts < 1 || numContracts > 1500) {
+                alert('Please enter a number between 1 and 1500');
+                return;
+            }
+
+            console.log(`Starting batch processing of ${numContracts} contracts...`);
+            if (resumeBatchId) {
+                console.log(`Resuming batch: ${resumeBatchId}`);
+            }
+
+            // Show progress, hide results
+            document.getElementById('batchProgress').style.display = 'block';
+            document.getElementById('batchResults').style.display = 'none';
+            document.getElementById('startBatchBtn').disabled = true;
+            document.getElementById('stopBatchBtn').style.display = 'inline-block';
+
+            // Reset progress
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressFill').textContent = '0%';
+            document.getElementById('progressText').textContent = resumeBatchId ? 'Resuming batch from checkpoint...' : 'Starting batch processing...';
+
+            // Initialize results storage
+            batchResults = {
+                contracts: [],
+                statistics: {}
+            };
+
+            // Prepare request body
+            const requestBody = {
+                num_contracts: numContracts,
+                seed: Date.now()
+            };
+
+            // Add batch_id if resuming
+            if (resumeBatchId && resumeBatchId.trim()) {
+                requestBody.batch_id = resumeBatchId.trim();
+            }
+
+            // Use fetch with SSE
+            fetch('http://localhost:5000/api/batch-translate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            }).then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                function readStream() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            console.log('Stream complete');
+                            finalizeBatch();
+                            return;
+                        }
+
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = JSON.parse(line.substring(6));
+                                handleBatchEvent(data);
+                            }
+                        }
+
+                        readStream();
+                    });
+                }
+
+                readStream();
+            }).catch(error => {
+                console.error('Batch processing error:', error);
+                alert('Batch processing failed: ' + error.message);
+                finalizeBatch();
+            });
+        }
+
+        function handleBatchEvent(event) {
+            const type = event.type;
+
+            if (type === 'batch_progress') {
+                const progress = (event.current / event.total) * 100;
+                document.getElementById('progressFill').style.width = progress + '%';
+                document.getElementById('progressFill').textContent = Math.round(progress) + '%';
+
+                // Show different message for skipped contracts
+                if (event.status === 'skipped') {
+                    document.getElementById('progressText').textContent = `⏭️ Skipping contract ${event.current} of ${event.total} (already processed)`;
+                    console.log(`⏭️ Skipped contract ${event.current} (already completed)`);
+                } else {
+                    document.getElementById('progressText').textContent = `Processing contract ${event.current} of ${event.total}...`;
+                }
+            }
+            else if (type === 'contract_phase') {
+                const phaseNames = ['', 'Document Processing', 'Contract Analysis', 'Code Generation',
+                                    'Security Audit', 'ABI Generation', 'MCP Server', 'Quality Evaluation'];
+                const phaseName = phaseNames[event.phase] || `Phase ${event.phase}`;
+                document.getElementById('phaseInfo').innerHTML = `
+                    <strong>Contract ${event.contract}:</strong> ${phaseName} - ${event.status}
+                `;
+            }
+            else if (type === 'contract_complete') {
+                console.log(`Contract ${event.contract} complete: Score ${event.score}/100, Grade ${event.grade}`);
+                batchResults.contracts.push({
+                    id: event.contract,
+                    score: event.score,
+                    grade: event.grade,
+                    latency: event.latency
+                });
+            }
+            else if (type === 'contract_error') {
+                console.error(`Contract ${event.contract} error:`, event.error);
+            }
+            else if (type === 'batch_complete') {
+                console.log('Batch processing complete! Fetching full results...');
+                // Fetch full aggregate results via API (SSE payload was too large)
+                fetch(`http://localhost:5000/api/batch-results/${event.batch_id}`)
+                    .then(response => response.json())
+                    .then(results => {
+                        console.log('Full results loaded:', results);
+                        batchResults.aggregate = results;
+                        displayBatchResults();
+                    })
+                    .catch(error => {
+                        console.error('Error fetching batch results:', error);
+                        alert('Failed to load batch results. Check console for details.');
+                    });
+            }
+        }
+
+        function stopBatchProcessing() {
+            if (batchEventSource) {
+                batchEventSource.close();
+                batchEventSource = null;
+            }
+            finalizeBatch();
+        }
+
+        function loadBatchResults(batchId) {
+            if (!batchId || !batchId.trim()) {
+                alert('Please enter a batch ID (e.g., 20260202_234755)');
+                return;
+            }
+
+            batchId = batchId.trim().replace('batch_', ''); // Remove batch_ prefix if present
+
+            console.log(`Loading results for batch ${batchId}...`);
+
+            fetch(`http://localhost:5000/api/batch-results/${batchId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Batch not found: ${batchId}`);
+                    }
+                    return response.json();
+                })
+                .then(results => {
+                    console.log('Batch results loaded:', results);
+                    batchResults.aggregate = results;
+                    displayBatchResults();
+                })
+                .catch(error => {
+                    console.error('Error loading batch results:', error);
+                    alert(`Failed to load batch results: ${error.message}`);
+                });
+        }
+
+        function finalizeBatch() {
+            document.getElementById('startBatchBtn').disabled = false;
+            document.getElementById('stopBatchBtn').style.display = 'none';
+            document.getElementById('batchProgress').style.display = 'none';
+        }
+
+        function displayBatchResults() {
+            const results = batchResults.aggregate;
+            if (!results) return;
+
+            const stats = results.statistics;
+
+            // Show results section
+            document.getElementById('batchResults').style.display = 'block';
+
+            // Update summary stats
+            document.getElementById('avgScore').textContent = stats.average_score.toFixed(1);
+            document.getElementById('totalContracts').textContent = results.total_contracts;
+            document.getElementById('avgLatency').textContent = stats.average_latency.toFixed(1);
+            document.getElementById('totalTime').textContent = stats.total_time.toFixed(1);
+
+            // Display compilation statistics if available
+            if (stats.compilation_stats) {
+                const compStats = stats.compilation_stats;
+                document.getElementById('compilationStats').style.display = 'block';
+                document.getElementById('compiledCount').textContent = compStats.successful || 0;
+                document.getElementById('compiledFailed').textContent = compStats.failed || 0;
+                document.getElementById('compilationRate').textContent = `${compStats.success_rate.toFixed(1)}%`;
+            }
+
+            // Display ground truth comparison if available
+            if (stats.ground_truth_comparison && stats.ground_truth_comparison.total_compared > 0) {
+                const gtStats = stats.ground_truth_comparison;
+                document.getElementById('groundTruthStats').style.display = 'block';
+                document.getElementById('gtAvgGenerated').textContent = gtStats.avg_generated_score.toFixed(1);
+                document.getElementById('gtAvgGroundTruth').textContent = gtStats.avg_ground_truth_score.toFixed(1);
+
+                const delta = gtStats.avg_score_delta;
+                const deltaEl = document.getElementById('gtDelta');
+                deltaEl.textContent = `${delta > 0 ? '+' : ''}${delta.toFixed(1)}`;
+                deltaEl.style.color = delta > 0 ? '#00ff88' : (delta < 0 ? '#ff6b6b' : '#fff');
+
+                document.getElementById('gtBetter').textContent = gtStats.generated_better_count || 0;
+                document.getElementById('gtWorse').textContent = gtStats.ground_truth_better_count || 0;
+            }
+
+            // Create score distribution chart
+            createScoreDistributionChart(results.individual_results);
+
+            // Create metric scores chart
+            createMetricScoresChart(stats.metric_averages);
+
+            // Create grade distribution chart
+            createGradeDistributionChart(stats.grade_distribution);
+
+            // Create ground truth comparison chart if available
+            if (stats.ground_truth_comparison && stats.ground_truth_comparison.total_compared > 0) {
+                createComparisonChart(results.individual_results);
+                createMetricComparisonChart(results.individual_results);
+                createDeltaChart(results.individual_results);
+            }
+
+            // Populate results table
+            populateResultsTable(results.individual_results);
+
+            finalizeBatch();
+        }
+
+        function createScoreDistributionChart(results) {
+            const ctx = document.getElementById('scoreDistChart').getContext('2d');
+
+            if (charts.scoreDist) charts.scoreDist.destroy();
+
+            charts.scoreDist = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: results.map(r => `#${r.contract_id}`),
+                    datasets: [{
+                        label: 'Final Score',
+                        data: results.map(r => r.score),
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#eee' } }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' }
+                        },
+                        x: {
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createMetricScoresChart(metrics) {
+            const ctx = document.getElementById('metricScoresChart').getContext('2d');
+
+            if (charts.metricScores) charts.metricScores.destroy();
+
+            charts.metricScores = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Functional\nCompleteness', 'Variable\nFidelity', 'State\nMachine',
+                             'Business\nLogic', 'Code\nQuality'],
+                    datasets: [{
+                        label: 'Average Score',
+                        data: [
+                            metrics.functional_completeness,
+                            metrics.variable_fidelity,
+                            metrics.state_machine,
+                            metrics.business_logic,
+                            metrics.code_quality
+                        ],
+                        backgroundColor: [
+                            '#9b59b6',
+                            '#3498db',
+                            '#2ecc71',
+                            '#e67e22',
+                            '#1abc9c'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#eee' } }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' }
+                        },
+                        x: {
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createGradeDistributionChart(gradeDist) {
+            const ctx = document.getElementById('gradeDistChart').getContext('2d');
+
+            if (charts.gradeDist) charts.gradeDist.destroy();
+
+            const grades = ['A', 'B', 'C', 'D', 'F'];
+            const counts = grades.map(g => gradeDist[g] || 0);
+
+            charts.gradeDist = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: grades,
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: [
+                            '#00ff88',
+                            '#00d4ff',
+                            '#ffaa00',
+                            '#ff6b6b',
+                            '#ff0000'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#eee' } }
+                    }
+                }
+            });
+        }
+
+        function createComparisonChart(results) {
+            // Filter results that have ground truth scores
+            const withGT = results.filter(r => r.ground_truth_score !== null && r.ground_truth_score !== undefined);
+
+            if (withGT.length === 0) {
+                console.log('No ground truth data available for comparison chart');
+                return;
+            }
+
+            console.log(`Creating comparison chart with ${withGT.length} contracts`);
+
+            // Show the chart container
+            document.getElementById('comparisonChartContainer').style.display = 'block';
+
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+
+            if (charts.comparison) charts.comparison.destroy();
+
+            charts.comparison = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: withGT.map(r => `#${r.contract_id}`),
+                    datasets: [
+                        {
+                            label: 'Generated Code',
+                            data: withGT.map(r => r.score),
+                            backgroundColor: '#00d4ff',
+                            borderColor: '#00d4ff',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Ground Truth',
+                            data: withGT.map(r => r.ground_truth_score),
+                            backgroundColor: '#ffaa00',
+                            borderColor: '#ffaa00',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#eee' },
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const idx = context.dataIndex;
+                                    const result = withGT[idx];
+                                    const delta = result.score_delta;
+                                    if (delta !== null && delta !== undefined) {
+                                        return `Delta: ${delta > 0 ? '+' : ''}${delta.toFixed(1)}`;
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' },
+                            title: {
+                                display: true,
+                                text: 'Score',
+                                color: '#eee'
+                            }
+                        },
+                        x: {
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' },
+                            title: {
+                                display: true,
+                                text: 'Contract',
+                                color: '#eee'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createMetricComparisonChart(results) {
+            // Filter results that have ground truth scores
+            const withGT = results.filter(r => r.ground_truth_score !== null && r.ground_truth_score !== undefined);
+
+            if (withGT.length === 0) return;
+
+            console.log('Creating metric comparison chart');
+
+            // Calculate average metrics for generated and ground truth
+            const avgGenerated = {
+                funcComplete: 0,
+                varFidelity: 0,
+                stateMachine: 0,
+                businessLogic: 0,
+                codeQuality: 0
+            };
+
+            const avgGroundTruth = {
+                funcComplete: 0,
+                varFidelity: 0,
+                stateMachine: 0,
+                businessLogic: 0,
+                codeQuality: 0
+            };
+
+            withGT.forEach(r => {
+                avgGenerated.funcComplete += r.metrics.functional_completeness;
+                avgGenerated.varFidelity += r.metrics.variable_fidelity;
+                avgGenerated.stateMachine += r.metrics.state_machine;
+                avgGenerated.businessLogic += r.metrics.business_logic;
+                avgGenerated.codeQuality += r.metrics.code_quality;
+
+                // Ground truth metrics (need to add these to the response)
+                if (r.ground_truth_metrics) {
+                    avgGroundTruth.funcComplete += r.ground_truth_metrics.functional_completeness || 0;
+                    avgGroundTruth.varFidelity += r.ground_truth_metrics.variable_fidelity || 0;
+                    avgGroundTruth.stateMachine += r.ground_truth_metrics.state_machine || 0;
+                    avgGroundTruth.businessLogic += r.ground_truth_metrics.business_logic || 0;
+                    avgGroundTruth.codeQuality += r.ground_truth_metrics.code_quality || 0;
+                }
+            });
+
+            const count = withGT.length;
+            Object.keys(avgGenerated).forEach(key => {
+                avgGenerated[key] /= count;
+                avgGroundTruth[key] /= count;
+            });
+
+            // Show the chart container
+            document.getElementById('metricComparisonContainer').style.display = 'block';
+
+            const ctx = document.getElementById('metricComparisonChart').getContext('2d');
+
+            if (charts.metricComparison) charts.metricComparison.destroy();
+
+            charts.metricComparison = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Functional\nCompleteness', 'Variable\nFidelity', 'State\nMachine', 'Business\nLogic', 'Code\nQuality'],
+                    datasets: [
+                        {
+                            label: 'Generated Code',
+                            data: [
+                                avgGenerated.funcComplete,
+                                avgGenerated.varFidelity,
+                                avgGenerated.stateMachine,
+                                avgGenerated.businessLogic,
+                                avgGenerated.codeQuality
+                            ],
+                            backgroundColor: '#00d4ff',
+                            borderColor: '#00d4ff',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Ground Truth',
+                            data: [
+                                avgGroundTruth.funcComplete,
+                                avgGroundTruth.varFidelity,
+                                avgGroundTruth.stateMachine,
+                                avgGroundTruth.businessLogic,
+                                avgGroundTruth.codeQuality
+                            ],
+                            backgroundColor: '#ffaa00',
+                            borderColor: '#ffaa00',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#eee' },
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' },
+                            title: {
+                                display: true,
+                                text: 'Average Score',
+                                color: '#eee'
+                            }
+                        },
+                        x: {
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createDeltaChart(results) {
+            // Filter results that have ground truth scores
+            const withGT = results.filter(r => r.ground_truth_score !== null && r.ground_truth_score !== undefined && r.score_delta !== null);
+
+            if (withGT.length === 0) return;
+
+            console.log('Creating delta chart');
+
+            // Show the chart container
+            document.getElementById('deltaChartContainer').style.display = 'block';
+
+            const ctx = document.getElementById('deltaChart').getContext('2d');
+
+            if (charts.delta) charts.delta.destroy();
+
+            // Create color array based on positive/negative deltas
+            const colors = withGT.map(r => r.score_delta >= 0 ? '#00ff88' : '#ff6b6b');
+
+            charts.delta = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: withGT.map(r => `#${r.contract_id}`),
+                    datasets: [
+                        {
+                            label: 'Score Delta (Generated - Ground Truth)',
+                            data: withGT.map(r => r.score_delta),
+                            backgroundColor: colors,
+                            borderColor: colors,
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#eee' },
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const delta = context.parsed.y;
+                                    const result = delta >= 0 ? 'Generated is better' : 'Ground truth is better';
+                                    return `Delta: ${delta > 0 ? '+' : ''}${delta.toFixed(1)} (${result})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' },
+                            title: {
+                                display: true,
+                                text: 'Score Difference',
+                                color: '#eee'
+                            }
+                        },
+                        x: {
+                            ticks: { color: '#eee' },
+                            grid: { color: '#333' },
+                            title: {
+                                display: true,
+                                text: 'Contract',
+                                color: '#eee'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function populateResultsTable(results) {
+            const tbody = document.getElementById('resultsTableBody');
+            tbody.innerHTML = '';
+
+            results.forEach(result => {
+                // Format compilation status
+                let compileStatus = '?';
+                let compileColor = '#888';
+                if (result.compiles === true) {
+                    compileStatus = 'Yes';
+                    compileColor = '#00ff88';
+                } else if (result.compiles === false) {
+                    compileStatus = 'No';
+                    compileColor = '#ff6b6b';
+                }
+
+                // Format ground truth score
+                const gtScore = result.ground_truth_score !== null && result.ground_truth_score !== undefined
+                    ? result.ground_truth_score.toFixed(1)
+                    : '--';
+
+                // Format delta
+                let deltaText = '--';
+                let deltaColor = '#888';
+                if (result.score_delta !== null && result.score_delta !== undefined) {
+                    deltaText = `${result.score_delta > 0 ? '+' : ''}${result.score_delta.toFixed(1)}`;
+                    deltaColor = result.score_delta > 0 ? '#00ff88' : (result.score_delta < 0 ? '#ff6b6b' : '#888');
+                }
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>#${result.contract_id}</td>
+                    <td><strong>${result.score.toFixed(1)}</strong>/100</td>
+                    <td style="color: #ffaa00;"><strong>${gtScore}</strong></td>
+                    <td style="color: ${deltaColor}; font-weight: bold;">${deltaText}</td>
+                    <td><span class="grade-${result.grade}">${result.grade}</span></td>
+                    <td style="color: ${compileColor}; font-weight: bold;">${compileStatus}</td>
+                    <td>${result.latency.toFixed(1)}s</td>
+                    <td>${result.metrics.functional_completeness.toFixed(1)}</td>
+                    <td>${result.metrics.variable_fidelity.toFixed(1)}</td>
+                    <td>${result.metrics.state_machine.toFixed(1)}</td>
+                    <td>${result.metrics.business_logic.toFixed(1)}</td>
+                    <td>${result.metrics.code_quality.toFixed(1)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Load first random contract on page load
+        window.onload = function() {
+            console.log('=== Sampler.html loaded ===');
+            console.log('Fetching random contract from API...');
+            loadRandomContract();
+        };
+    </script>
+</body>
+</html>
